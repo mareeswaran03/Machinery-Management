@@ -1,0 +1,392 @@
+import React, { Component } from "react";
+let table;
+let selectedRows;
+let TypeName;
+let DepartmentName;
+
+class MachineryForm extends Component{
+    SaveMachineryDetails =()=>{
+        $(".ValidationClass").addClass('was-validated')
+        if($('.form-control:invalid, .form-control.is-invalid').filter(":visible").length){
+            var FirstField = $('.form-control:invalid, .form-control.is-invalid')[0].id;
+            $("#" + FirstField).focus();
+            Swal.fire({
+                icon:"error",
+                text:FirstField.replace(/([A-Z])/g, ' $1').trim()+' is mandatory!',
+                showConfirmButton:true
+            })
+            return
+        }
+
+        const Data= $('.JsonObject input:visible, .JsonObject select').toArray();
+        const MaintenanceDetails={};
+        for (const key in Data){
+            MaintenanceDetails[Data[key].id] =$(Data[key]).val();
+        }
+        var PostData = {
+            MachineryID:$('#MachineryID').val(),
+			Name:$('#Name').val(),
+			TypeID:$('#TypeID').val(),
+			DepartmentID:$('#DepartmentID').val(),
+            MachinePrice:$('#MachinePrice').val(),
+            MachinePurchaseDate:$('#MachinePurchaseDate').val(),
+			ProductionCapacity:$('#ProductionCapacity').val(),
+            MaintenanceDetails,
+            Narration:$('#Narration').val(),
+            SupplierID:$('#SupplierID').val()
+		}
+        this.AjaxScript('InsUpMachinery', PostData, 'InsUpMachinery');
+        // let isValid=true;             
+        // const ids= $('#MachineryCard input:visible,#MachineryCard textarea').toArray();
+        // for (const key in ids){
+        //     if(!ids[key].checkValidity()){
+        //         isValid=false;
+        //     }
+        // }
+        // if(isValid){
+        //     $(".ValidationClass").removeClass("was-validated");
+        //     this.AjaxScript("InsUpMachinery",PostData,"InsUpMachinery")
+        //     console.log(PostData)
+        //     $("#SaveButton").text("Save").off("click").on("click",()=>{
+        //         $("#MachineryCard").submit();
+        //     })
+        // }else{
+        //     $(".ValidationClass").addClass("was-validated");
+        // }
+        this.ClearAndRefresh()
+    };
+
+     ClearAndRefresh(){
+        $("#MachineryCard input").val("");
+        $("#MachineryCard textarea").val("");
+        $("#workOrderDetails input").val("");
+        $("#MachineryCard input[type='checkbox']").prop("checked", false);
+        $("#MachineryCard select").val(function () {
+            return $(this).find("option:first").val();
+        })
+        $("#workOrderDetails textarea").val("");
+        $(".ValidationClass").removeClass('was-validated')
+        $('#Name').focus();
+        $('#SaveButton').text('Save')
+    }
+
+    componentDidMount(){
+        $('#Periodical').on('change',()=>{
+            $('.Period').text($('#Periodical option:selected').text() === 'Days' ? "No Of Days" : "Production Outcomes")
+        });
+        $('#Periodical').trigger('change')
+        const PostData={}
+        table = $("#MachineryMasterTable").DataTable({
+            scrollY: "40vh",
+            keys:{keys :[13,46]},
+            scrollX: true,
+            ordering: false,
+            select:true,
+            paging: false,
+            searching: false,
+            columns: [
+                {data : "Name",className:"text-nowrap"},
+                {data : "DepartmentName",className:"text-nowrap"},
+                {data : "MachinePrice",className:"text-nowrap"},
+                {data : "ProductionCapacity",className:"text-nowrap"},
+                {data : "SupplierName",className:"text-nowrap"}
+              ],
+            "ajax":{
+				url:"http://localhost:5000/FetchMachineryTableDetails",
+				type:"POST",
+				data:{  },
+				dataSrc:(json)=>{
+                    console.log(123123123, json);
+					return json;
+				}
+			},
+        })
+        $(document).on("keydown", function(e) {
+            const selectedRows = table.rows({ selected: true });
+            var currentIndex = selectedRows.indexes().toArray()[0];
+            var nextIndex;
+            if (e.keyCode === 38) { 
+                nextIndex = currentIndex - 1;
+            } else if (e.keyCode === 40) { 
+                nextIndex = currentIndex + 1;
+            }
+            if (nextIndex >= 0 && nextIndex < table.rows().count()) {                          
+                selectedRows.deselect();
+                table.row(nextIndex).select();
+              }
+      });
+        table.on("key", function (e, datatable, key, cell, originalEvent) { 
+            if (key === 13) {
+                $('#SaveButton').text("Update");
+                var RowData = table.row(cell.index().row).data() || {};
+                console.log(RowData)
+                RowData.MaintenanceDetails = JSON.parse(RowData.MaintenanceDetails);
+            
+                for (const key in RowData) {
+                    const value = RowData[key];
+                    
+                    if (typeof value === 'object') {
+                        for (const nestedKey in value) {
+                            const nestedValue = value[nestedKey];
+                            $('#' + nestedKey).val(nestedValue);
+                        }
+                    }
+                    else {
+                        $('#' + key).val(value);
+        
+                    }
+                    if ($('#' + key).attr('type') == 'checkbox') {
+                        $('#' + key).prop('checked', (value == 1) ? true : false);
+                    }
+                }
+                $("#Periodical").trigger('change');
+
+            }
+        });
+        this.AjaxScript('FetchMachineryBaseDetails', PostData, 'FetchMachineryBaseDetails');
+        $('#Name').focus();
+    };
+    componentWillUnmount() {
+        $(document).off("keydown");
+        table.off("key");
+    }
+    AjaxScript=(action, PostData, api)=>{
+		fetch("http://localhost:5000/"+api, {
+			method: 'post',
+			headers:{
+				Accept: 'application/json',
+				"Content-Type": 'application/json'
+			},
+			body: JSON.stringify(PostData)
+		}).then((response) => response.json())
+        .then(async (data)=> {
+			// if(action === 'FetchMachineryTableDetails'){
+			// 	await $("#MachineryMasterTable").DataTable().ajax.reload().draw()
+			// }
+            if(action === "InsUpMachinery"){
+                await $("#MachineryMasterTable").DataTable().ajax.reload().draw()
+                console.log(data)
+                Swal.fire({
+                    title: data.Message ,
+                    icon: data.notifier,
+                    showConfirmButton: true,
+                });
+            }
+            if(action === "FetchMachineryBaseDetails"){
+                console.log(data)
+                TypeName = data[0];
+                DepartmentName=data[1];
+                autocomplete(
+                    document.getElementById("TypeName"),
+                    TypeName,
+                    "TypeName",
+                    false,
+                    ["TypeID"],
+                  );
+                autocomplete(
+                    document.getElementById("DepartmentName"),
+                    DepartmentName,
+                    "DepartmentName",
+                    false,
+                    ["DepartmentID"],
+                  );
+                
+                for (const [index,value] of data[1].entries()){
+                    $("#DepartmentID").append('<option value="'+value.DepartmentID+'">' + value.DepartmentName +'</option>');
+                }
+                for (const [index,value] of data[2].entries()){
+                    $("#SupplierID").append('<option value="'+value.LedgerID+'">' + value.Name +'</option>');
+                }    
+            }
+            // if(action === "FetchDepartmentDetails"){
+            //     for (const [index,value] of data.entries()){
+                    
+            // }
+            // }
+            // if(action === "FetchLedgerDetails"){
+            //     for (const [index,value] of data.entries()){
+                    
+            // }
+            // }
+		})
+	}
+    
+    render() {
+        return(
+            <div>
+                <div className="container-fluid">
+                    <div className="row mt-4">
+                        <div className="col-lg-5">
+                            <div className="card" id="MachineryCard">
+                                <div className="card-header" style={{background: '#70b5ff'}}>
+                                    <h5 className="card-title text-center mb-1"><b>Machinery Management</b></h5>
+                                </div>
+                                <div className="card-body" style={{background: '#d1e7ff'}}>
+                                    <div className="row mt-2 ">
+                                        <div className="col-lg-6 ValidationClass">
+                                            <dt>Machinery ID</dt>
+                                            <input type="text" className="form-control" id="MachineryID" readOnly />
+                                            {/* <div className="valid-feedback">Valid.</div>
+                                            <div className="invalid-feedback">Please fill out this field.</div> */}
+                                        </div>
+                                        <div className="col-lg-6 ValidationClass">
+                                            <dt>Name</dt>
+                                            <input type="text" className="form-control" id="Name" pattern="[A-Z a-z]*" onInput={(e) => (e.target.value = e.target.value.replace( /[0-9]/g, "", )) } required />
+                                            {/* <div className="valid-feedback">Valid.</div>
+                                            <div className="invalid-feedback">Please fill out this field.</div> */}
+                                        </div>
+                                    </div>
+                                    <div className="row mt-2">
+                                        <div className="col-lg-6">
+                                            <dt>Type Name</dt>
+                                            <input type="hidden" className="form-control" id="TypeID" />
+                                            <input type="text" className="form-control" id="TypeName" />
+                                        </div>
+                                        <div className="col-lg-6 ">
+                                            <dt>Department</dt>
+                                            <input type="hidden" className="form-control" id="DepartmentID" />
+                                            <input type="text" className="form-control" id="DepartmentName" />
+                                        </div>
+                                    </div>
+                                    <div className="row mt-2 ValidationClass"> 
+                                        <div className="col-lg-6 ValidationClass">
+                                            <dt>Machine Price</dt>
+                                            <input type="text" pattern="^[$₹]?[0-9]+(\.[0-9]{2})?$" className="form-control" id="MachinePrice" onInput={(e) => (e.target.value = e.target.value.replace(/[^0-9]/g, "", ))} required/>
+                                        </div>
+                                        <div className="col-lg-6">
+                                            <dt>Purchase Date</dt>
+                                            <input type="date" className="form-control" id="MachinePurchaseDate" required/>
+                                        </div>
+                                    </div>
+                                    <div className="row mt-2 ">
+                                        <div className="col-lg-4 ValidationClass">
+                                            <dt>Production Capactity</dt>
+                                            <input type="text" className="form-control" id="ProductionCapacity" pattern="^[$₹]?[0-9]+(\.[0-9]{2})?$" onInput={(e) => (e.target.value = e.target.value.replace(/[^0-9]/g, "", ))}  required />
+                                        </div>
+                                        <div className="col-lg-4 JsonObject">
+                                            <dt>Maintenance Period</dt>
+                                            <select className=" form-control" id="Periodical" >
+                                                <option value="DAYS">Days</option>
+                                                <option value="PRODUCTION">Production</option>
+                                            </select>
+                                        </div>
+                                        <div className="col-lg-4 JsonObject ValidationClass">
+                                            <div><dt className="Period"> No of Days</dt></div>
+                                            <input type="text" className="form-control" id="PeriodUnitValue" pattern="^[$₹]?[0-9]+(\.[0-9]{2})?$" onInput={(e) => (e.target.value = e.target.value.replace(/[^0-9]/g, "", ))} required/>   
+                                        </div>
+                                 </div>
+                                    <div className="row mt-3 ValidationClass">
+                                        <div className="col-lg-3">
+                                            &nbsp;
+                                            <dt>Narration</dt>
+                                        </div>
+                                        <div className="col-lg-9">
+                                             <textarea className="form-control" id="Narration" rows="3" required></textarea>
+                                        </div>
+                                   </div>
+                                    <div className="row mt-3">
+                                        <div className="col-lg-3 mt">
+                                            <dt>Supplier Name</dt> 
+                                        </div>
+                                        <div className="col-lg-9">
+                                            <select className=" form-control" id="SupplierID">
+                                            </select>
+                                        </div>
+                                    </div>
+                                    {/* <div className="row mt-2">
+                                        <div className="col-lg-5">
+                                            <button className="btn btn-danger" data-bs-toggle="modal" data-bs-target="#workOrderDetails" >WorkOrder Details</button>
+                                        </div>
+                                        <div className="col-lg-7 text-end">
+                                            <dt>Active Status</dt>
+                                            <div className="form-check">
+                                                <input className="form-check-input " id="Status" type="checkbox" />
+                                            </div>
+                                        </div>
+                                    </div> */}
+                                        {/* <div className="modal fade" id="workOrderDetails">
+                                            <div className="modal-dialog modal-md">
+                                                <div className="modal-content">
+                                                    <div className="modal-header">
+                                                        <dt className="modal-title">WorkOrder Details</dt>
+                                                        <button className="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div className="modal-body">
+                                                        <div className="row mt-2 ">
+                                                            <input type="hidden" className="form-control" id="WorkOrderID" />
+                                                            <div className="col-lg-4">
+                                                                <dt>Date Created</dt>
+                                                            </div>
+                                                            <div className="col-lg-8">
+                                                                <input type="date" className="form-control" id="DateCreated" required/>
+                                                                
+                                                            </div>
+                                                        </div>
+                                                        <div className="row mt-2">
+                                                            <div className="col-lg-4">
+                                                                <dt>Content</dt>
+                                                            </div>
+                                                            <div className="col-lg-8">
+                                                                 <textarea className="form-control" id="Content"></textarea>
+                                                            </div>
+                                                        </div>
+                                                        <div className="row mt-2">
+                                                            <div className="col-lg-4">
+                                                                <dt>Description</dt>
+                                                            </div>
+                                                            <div className="col-lg-8">
+                                                                <textarea className="form-control" id="Description" ></textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div> */}
+                                        
+                                    <div className="row mt-2">
+                                        <div className="col-lg-5 text-left">
+                                            <button className="btn btn-primary" id="SaveButton" onClick={this.SaveMachineryDetails}>Save</button>
+                                        </div>
+                                        <div className="col-lg-7 text-right">
+                                            <button className="btn btn-danger" id="ClearButton" onClick={this.ClearAndRefresh} >Clear</button>
+                                        </div>
+                                    </div>
+                                        {/*  */}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="col-lg-7">
+                            <div className="card">
+                                <div className="card-header" style={{background: '#70b5ff'}}>
+                                    <h5 className="text-center mb-1">
+                                        <b>Machinery Details</b>
+                                    </h5>
+                                </div>
+                                <div className="card-body" style={{background: '#d1e7ff'}}>
+                                    <table 
+                                        id="MachineryMasterTable"
+                                        className="display"
+                                        style={{width: "100%"}}>
+                                            <thead>
+                                                <tr>
+                                                    <td><b>Name</b></td>
+                                                    <td><b>Department</b></td>
+                                                    <td><b>Machine Price</b></td>
+                                                    <td><b>Production Capacity</b></td>
+                                                    <td><b>Supplier Name</b></td>
+                                                </tr>
+                                            </thead>
+                                            <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )   
+}
+
+}
+
+export default MachineryForm
