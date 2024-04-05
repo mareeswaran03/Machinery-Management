@@ -1,0 +1,694 @@
+import React, { Component } from "react";
+import "./AutoComplete.css";
+
+let table;
+let ServiceType;
+let EmployeeName;
+let Ledger;
+let MachineryID;
+
+class MachineryServiceForm extends Component {
+  EmployeeData = {};
+  MaterialData = {};
+
+  KeyHandler(){
+    const ClassObj = new MachineryServiceForm();
+    $(document).on("keydown", function(e) {
+      const selectedRows = table.rows({ selected: true });
+      var currentIndex = selectedRows.indexes().toArray()[0];
+      var nextIndex;
+      if (e.keyCode === 38) { 
+          nextIndex = currentIndex - 1;
+      } else if (e.keyCode === 40) { 
+          nextIndex = currentIndex + 1;
+      }
+      if (nextIndex >= 0 && nextIndex < table.rows().count()) {                          
+          selectedRows.deselect();
+          table.row(nextIndex).select();
+        }
+});
+    table.on("key",function (e, datatable, key, cell, originalEvent) {
+      if (key === 13) {
+        $("#SaveButton").text("Update");
+        $("#ServiceInvoiceFileName").text("File Name")
+        var RowData = table.row(cell.index().row).data() || {};
+        console.log(RowData);
+        const PostData={
+          ID : RowData.ID
+        }
+        console.log(PostData)
+        ClassObj.AjaxScript("FetchMachineryInvoiceDetails",PostData,"FetchMachineryInvoiceDetails")
+      }
+      
+    });
+  }
+
+  componentDidMount() {
+    $("#ServiceMode").on("change", () => {
+        $(".Service").hide();
+        $("." + $("#ServiceMode").val()).show();
+        if ($("#ServiceMode").val() === "INTERNAL") {
+          $("#IsStoreProduct")[0].checked = true;
+          $("#IsStoreProduct")[0].disabled = true;
+          $('#EmployeeName')[0].disabled= true;
+          autocomplete(
+            document.getElementById("EmployeeID"),
+            Ledger,
+            "LedgerID",
+            false,
+            ["EmployeeName"],
+          );
+          this.ForHideStoreMaterials();
+        } else {
+          $("#IsStoreProduct")[0].checked = false;
+          $("#IsStoreProduct")[0].disabled = false;
+          $('#EmployeeName')[0].disabled= false;
+          autocomplete(
+            document.getElementById("EmployeeID"),
+            [],
+            "",
+            false,
+            [],
+          );
+          this.ForHideStoreMaterials();
+        }
+      });
+      
+      
+      $("#IsStoreProduct").on("click", () => {
+        this.ForHideStoreMaterials();
+      });
+  
+      var today = new Date().toISOString().substring(0, 10);
+      // var dd = String(today.getDate()).padStart(2, '0');
+      // var mm = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
+      // var yyyy = today.getFullYear();
+      // today = yyyy + '-' + mm + '-' + dd;
+      document.getElementById("ServiceDate").value = today;
+  
+      const PostData = {};
+  
+      table = $("#MachineryServiceTable").DataTable({
+        scrollY: "40vh",
+        keys: { keys: [13, 46,38,40] },
+        scrollX: true,
+        ordering:false,
+        select: {
+          style: "single",
+          info: "false",
+        },
+        info: false,
+        paging: false,
+        searching: false,
+        columns: [
+          { data: "MachineryID", className: "text-nowrap" },
+          { data: "ServiceDate", className: "text-nowrap" },
+          { data: "MachineryName", className: "text-nowrap" },
+          { data: "ServiceTypeName", className: "text-nowrap" },
+          { data: "TaxPercentage", className: "text-nowrap" },
+        ],
+        ajax: {
+          url: "http://localhost:3000/FetchMachineryServiceTableDetails",
+          type: "POST",
+          data: {},
+          dataSrc: (json) => {
+            return json;
+          },
+        },
+      });
+      this.KeyHandler()
+      $("#MachineryID").focus();
+      this.AjaxScript("FetchMachineryServiceBaseDetails",PostData,"FetchMachineryServiceBaseDetails",);
+
+      
+  }
+  componentWillUnmount() {
+    $(document).off("keydown");
+    table.off("key");
+}
+
+  SaveMachineryDetails = () => {
+    $(".ValidationClass").addClass("was-validated");
+    if ($(".form-control:invalid, .form-control.is-invalid").filter(":visible").length) {
+      var FirstField = $(".form-control:invalid, .form-control.is-invalid")[0].id;
+      $("#" + FirstField).focus();
+      Swal.fire({
+        icon: "error",
+        text: FirstField.replace(/([A-Z])/g, "$1").trim() + " is mandatory!",
+        showConfirmButton: true,
+      });
+      return;
+    }
+    const EmployeeData = $(".EmployeeObject input:visible, .EmployeeObject select",).toArray();
+    const EmployeeDetails = {};
+    for (const key in EmployeeData) {
+      EmployeeDetails[EmployeeData[key].id] = $(EmployeeData[key]).val();
+    }
+    const MaterialData = $(".MaterialObject input").toArray();
+    const MaterialDetails = {};
+    for (const key in MaterialData) {
+      console.log(key);
+      MaterialDetails[MaterialData[key].id] = $(MaterialData[key]).val();
+    }
+
+    var PostData = {
+      ID: $("#ID").val(),
+      ServiceDate: $("#ServiceDate").val(),
+      MachineryID: $("#MachineryID").val(),
+      MachineryName: $("#MachineryName").val(),
+      ServiceTypeID: $("#ServiceTypeID").val(),
+      ServiceTypeName: $('#ServiceTypeName').val(),
+      GrossAmount: $("#GrossAmount").val(),
+      TaxPercentage: $("#TaxPercentage").val(),
+      DepartmentIncharge: $("#DepartmentIncharge").val(),
+      ServiceMode: $("#ServiceMode").val(),
+      EmployeeDetails,
+      LabourFair: $("#LabourFair").val(),
+      LabourTaxPercentage: $("#LabourTaxPercentage").val(),
+      MaterialDetails,
+      MaterialAmount: $("#MaterialAmount").val(),
+      MaterialTaxPercentage: $("#MaterialTaxPercentage").val(),
+      ServiceInvoiceDetails: {ServiceInvoiceField:$('#ServiceInvoiceField').val(),ServiceInvoiceFileName:$('#ServiceInvoiceFileName').val()},
+      ServiceNarration: $("#ServiceNarration").val(),
+    };
+
+    this.AjaxScript("InsupMachineryService", PostData, "InsupMachineryService");
+    this.ClearAndRefresh();
+  };
+
+  ClearAndRefresh() {
+    $("#MachineryServiceCard input").val("");
+    $("#MachineryServiceCard textarea").val("");
+    $("#DepartmentName").text("");
+    $("#TypeName").text("");
+    $("#NetAmount").text("");
+    $("#MachineryServiceCard select").val(function () {
+      return $(this).find("option:first").val();
+    });
+    $("#MaterialDetailModal input").val("");
+    $(".ValidationClass").removeClass("was-validated");
+    $("#MachineryID").focus();
+    $("#SaveButton").text("Save");
+    $("#ServiceMode").trigger("change");
+    var today = new Date().toISOString().substring(0, 10);
+    document.getElementById("ServiceDate").value = today;
+  }
+
+  ViewMaterialsDetailsModal() {
+    $("#MaterialDetailModal").modal("show");
+    $('#MaterialDetailModal').on('shown.bs.modal', function () {
+      $('#IsStoreProduct').focus();
+    });
+  }
+
+  ForHideStoreMaterials() {
+    if ($("#IsStoreProduct").is(":checked")) {
+        $(".StoreHide").hide();
+      } else {
+        $(".StoreHide").show();
+      }
+  }
+
+
+  AjaxScript = (action, PostData, API) => {
+    fetch("http://localhost:3000/" + API, {
+      method: "post",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(PostData),
+    })
+      .then((response) => response.json())
+      .then(async (data) => {
+        if (action === "FetchMachineryServiceBaseDetails") {
+          console.log(data);
+          Ledger = data[0];
+          MachineryID = data[1];
+          ServiceType = data[2];
+          autocomplete(
+            document.getElementById("MachineryID"),
+            MachineryID,
+            "MachineryID",
+            false,
+            ["MachineryName"],
+          );
+          autocomplete(
+            document.getElementById("ServiceTypeName"),
+            ServiceType,
+            "ServiceType",
+            false,
+            ["ServiceTypeID"],
+          );
+
+          console.log(MachineryID.length);
+        }
+        else if (action === "InsupMachineryService") {
+          await $("#MachineryServiceTable").DataTable().ajax.reload().draw();
+          console.log(data);
+          Swal.fire({
+            title: data.Message,
+            icon: data.notifier,
+            showConfirmButton: true,
+          });
+        }
+        else if(action === "FetchMachineryInvoiceDetails"){
+          console.log(data[0])
+          var RowData = data[0]
+          $('#ServiceInvoice').show()
+          $('#ServiceInvoiceFileName').hide();
+          RowData.EmployeeDetails = JSON.parse(RowData.EmployeeDetails);
+          RowData.MaterialDetails = JSON.parse(RowData.MaterialDetails);
+          RowData.ServiceInvoiceDetails= JSON.parse(RowData.ServiceInvoiceDetails);
+        
+          for (const key in RowData) {
+            const value = RowData[key];
+
+            if (typeof value === "object") {
+              for (const nestedKey in value) {
+                const nestedValue = value[nestedKey];
+                $("#" + nestedKey).val(nestedValue);
+              }
+            } else if ($("#" + key).prop("tagName") == "FONT") {
+              $("#" + key).text(value);
+            } else {
+              $("#" + key).val(value);
+            }
+            if ($("#" + key).attr("type") == "checkbox") {
+              $("#" + key).prop("checked", value == 1 ? true : false);
+            }
+          }
+          if (RowData && RowData.ServiceInvoiceDetails && RowData.ServiceInvoiceDetails.ServiceInvoiceField && RowData.ServiceInvoiceDetails.ServiceInvoiceFileName) {
+            const base64string = RowData.ServiceInvoiceDetails.ServiceInvoiceField;
+            const filename = RowData.ServiceInvoiceDetails.ServiceInvoiceFileName;
+            $('#ServiceInvoiceField').val(base64string);
+            $('#ServiceInvoiceFileName').val(filename);
+            var file=$('#ServiceInvoiceFileName').val()
+            if(file){
+              $('#ServiceInvoice').hide()
+              $('#ServiceInvoiceFileName').show();
+            }
+          }
+          $("#ServiceMode").trigger("change");
+        }
+      });
+  };
+
+  render() {
+    return (
+      <div>
+        <div className="container-fluid">
+          <div className="row mt-4">
+            <div className="col-lg-5">
+              <div className="card" id="MachineryServiceCard">
+                <div className="card-header" style={{ background: "#70b5ff" }}>
+                  <h5 className="card-title text-center mb-1">
+                    <b>Machinery Service</b>
+                  </h5>
+                </div>
+                <div className="card-body" style={{ background: "#d1e7ff" }}>
+                  <div>
+                    <input type="hidden" id="ID" />
+                    <input type="hidden" id="ServiceTypeID" />
+                  </div>
+                  <div className="row">
+                    <div className="col-lg-4">
+                      <b>Service Date</b>
+                      <input type="date" className="form-control" id="ServiceDate" />
+                    </div>
+                    <div className="col-lg-4 ValidationClass">
+                      <b>Machinery ID</b>
+                      <input type="text" className="form-control" id="MachineryID" pattern='[A-Za-z0-9!@#$%^&*()\-_=+\[\]{};:,.<>?\/]'
+                      onInput={(e) => {
+                        e.target.value = e.target.value.replace(/[^a-zA-Z0-9!@#$%^&*()\-_=+\[\]{};:'",.<>?\/]/g, "");
+                    }}
+                      required />
+                    </div>
+                    <div className="col-lg-4 ">
+                      <b>Machinery Name</b>
+                      <input type="text" className="form-control" id="MachineryName" readOnly />
+                    </div>
+                  </div>
+                  <div className="row mt-2">
+                    <div className="col-lg-4 ValidationClass">
+                      <b>Service Type</b>
+                      <input type="text" className="form-control" id="ServiceTypeName" 
+                      onInput={(e) => {
+                        e.target.value = e.target.value.replace(/[^a-zA-Z]/g, "");
+                      }}
+                      required />
+                    </div>
+                    <div className="col-lg-4 ValidationClass">
+                      <b>Gross Amount</b>
+                      <input type="text" className="form-control" id="GrossAmount"
+                        onInput={(e) =>
+                          (e.target.value = e.target.value.replace(
+                            /[^0-9]/g,
+                            "",
+                          ))
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="col-lg-4 ValidationClass">
+                      <b>Tax %</b>
+                      <input type="number" className="form-control" id="TaxPercentage"
+                        onInput={(e) => {e.target.value = e.target.value.replace(/[^0-9]/g, ""); if(parseInt(e.target.value) > 100) e.target.value = "100";}}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="row mt-2">
+                    <div className="col-lg-4 ValidationClass">
+                      <b>Dept Incharge</b>
+                      <input type="text" className="form-control" id="DepartmentIncharge"
+                        onInput={(e) =>
+                          (e.target.value = e.target.value.replace(
+                            /[^a-zA-Z]/g,
+                            "",
+                          ))
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="col-lg-4">
+                      <b>Service Mode</b>
+                      <select className="form-control" id="ServiceMode">
+                        <option value="EXTERNAL">External</option>
+                        <option value="INTERNAL">Internal</option>
+                      </select>
+                    </div>
+                    <div className="col-lg-4 ValidationClass EmployeeObject">
+                      <b>Employee ID</b>
+                      <input type="text" className="form-control" id="EmployeeID"
+                        onInput={(e) =>
+                          (e.target.value = e.target.value.replace(
+                            /[^a-zA-Z0-9]/g,
+                            "",
+                          ))
+                        }
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="row">
+                    <div className="col-lg-6 mt-2 EmployeeObject">
+                      <b>Employee Name</b>
+                      <input type="text" className="form-control" id="EmployeeName"
+                        onInput={(e) =>
+                          (e.target.value = e.target.value.replace(
+                            /[^a-zA-Z]/g,
+                            "",
+                          ))
+                        }
+                      />
+                    </div>
+                    <div className="col-lg-6 mt-2 Service EXTERNAL ValidationClass EmployeeObject">
+                      <b>Company Name</b>
+                      <input type="text" className="form-control" id="CompanyName"
+                        onInput={(e) =>
+                          (e.target.value = e.target.value.replace(
+                            /[^a-zA-Z]/g,
+                            "",
+                          ))
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="col-lg-4 Service EXTERNAL mt-2 ValidationClass">
+                      <b>Labour Fair</b>
+                      <input type="text" className="form-control" id="LabourFair"
+                        onInput={(e) =>
+                          (e.target.value = e.target.value.replace(
+                            /[^\d]/g,
+                            "",
+                          ))
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="col-lg-4 Service EXTERNAL mt-2 ValidationClass">
+                      <b>Labour Tax %</b>
+                      <input type="number" className="form-control" id="LabourTaxPercentage"
+                        onInput={(e) => {e.target.value = e.target.value.replace(/[^0-9]/g, ""); if(parseInt(e.target.value) > 100) e.target.value = "100";}}                                             
+                        required
+                      />
+                    </div>
+                    <div className="col-lg-4 mt-2">
+                      <b>Material Details</b>
+                      <button className="btn btn-primary" onClick={() => {
+                        this.ViewMaterialsDetailsModal()
+                        }}><b>Open Modal</b></button>
+                    </div>
+                  </div>
+                  <div className="row mt-2">
+                    <div className="col-lg-12">
+                      <b>Service Narration</b>
+                      <textarea className="form-control" id="ServiceNarration" rows="3"></textarea>
+                    </div>
+                  </div>
+                    <div className="row p-3">
+                      <font><b> Department Name : </b>{" "}<font id="DepartmentName" className="DepartmentName">{" "}</font></font>
+                    </div>
+                    <div className="row p-3">
+                      <font><b> Type Name : </b>{" "}<font id="TypeName" className="TypeName">{" "}</font></font>
+                    </div>
+                    <div className="row p-3">
+                      <font><b> Net Amount : </b>{" "}<font id="NetAmount" className="NetAmount">{" "}</font></font>
+                    </div>
+                  <div className="row mt-2 pt-3">
+                    <div className="col-lg-5 text-left">
+                      <button className="btn btn-primary" id="SaveButton" onClick={() => {this.SaveMachineryDetails();}}><b>Save</b></button>
+                    </div>
+                    <div className="col-lg-7 text-right">
+                      <button className="btn btn-danger" id="ClearButton" onClick={() => {this.ClearAndRefresh();}}><b>Clear</b></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-lg-7">
+              <div className="card">
+                <div className="card-header" style={{ background: "#70b5ff" }}>
+                  <h5 className="card-title text-center mb-1">
+                    <b>Machinery Service Details</b>
+                  </h5>
+                </div>
+                <div className="card-body" style={{ background: "#d1e7ff" }}>
+                  <table id="MachineryServiceTable" className="display" style={{ width: "100%" }}>
+                    <thead>
+                      <tr>
+                        <th>
+                          <b>Machinery ID</b>
+                        </th>
+                        <th>
+                          <b>Service Date</b>
+                        </th>
+                        <th>
+                          <b>Machinery Name</b>
+                        </th>
+                        <th>
+                          <b>Service Type Name</b>
+                        </th>
+                        <th>
+                          <b>Tax Percentage</b>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <MaterialDetailModal />
+      </div>
+    );
+  }
+}
+
+class MaterialDetailModal extends Component {
+
+  FileConversion=()=>{
+    const file = document.querySelector('input[type=file]')['files'][0];
+    let reader = new FileReader();
+    // console.log("next");
+    reader.onload = function () {
+        const base64String = reader.result.replace("data:", "")
+            .replace(/^.+,/, "");
+        $('#ServiceInvoiceField').val(base64String)
+        $('#ServiceInvoiceFileName').val(file.name)
+
+        if($('#ServiceInvoiceField').val()){
+          $('#ServiceInvoice').hide()
+          $('#ServiceInvoiceFileName').show();
+        }else{
+          $('#ServiceInvoice').show()
+          $('#ServiceInvoiceFileName').hide();
+        }
+        // document.getElementById('ServiceInvoiceField').value = base64String;
+    }
+    reader.readAsDataURL(file);  
+}
+
+PreviewImage = () => {
+  let base64String = $('#ServiceInvoiceField').val();
+  if (base64String) {
+    const isImage = base64String.includes('/9j/4AAQSkZJRgABAQAAAQABAAD');
+    const isPDF = base64String.includes('JVBERi0x');
+    const isJPG = base64String.includes('/9j/4AAQSkZJRgABAQEAYABgAAD/');
+    if (isImage) {
+        const imageURL =base64String;
+        const newWindow = window.open('','_blank', 'width=850,height=700,left=310');
+        newWindow.document.write('<div style="display:flex;justify-content:center;align-items:center;width:100%;height:100vh;"><img src="' + 'data:image/jpeg;base64,'+encodeURI(imageURL) + '" style="max-width:100%;max-height:100%;"></div>');
+    } if (isPDF) {
+        const pdfURL = base64String;
+        const newWindow = window.open('','_blank', 'width=850,height=700,left=310');
+        newWindow.document.write('<iframe src="' + 'data:application/pdf;base64,'+encodeURI(pdfURL) + '" style="width:100%;height:100%;border:none;"></iframe>');
+    }if (isJPG) {
+      const imageURL =base64String;
+      const newWindow = window.open('','_blank', 'width=400,height=400,right=500,left=500,top=200 ');
+      newWindow.document.write('<div style="display:flex;justify-content:center;align-items:center;width:100%;height:100vh;"><img src="' + 'data:image/jpeg;base64,'+encodeURI(imageURL) + '" style="max-width:100%;max-height:100%;"></div>');
+  }
+} else {
+    Swal.fire({
+        icon: "error",
+        text: "No Image/PDF is selected",
+        showConfirmButton: true
+    });
+}
+};
+
+DeleteFile=()=>{
+  let base64String = $('#ServiceInvoiceField').val();
+if(base64String){
+  Swal.fire({
+      title: "Are you sure?",
+      icon: "warning",
+      showCancelButton: true,
+      showConfirmButton: true
+    }).then((result)=>{
+       if (result.isConfirmed) {
+          $('#ServiceInvoice').val("")
+          $('#ServiceInvoiceField').val("")
+          $('#ServiceInvoiceFileName').val("")
+          $('#ServiceInvoice').show()
+          $('#ServiceInvoiceFileName').hide();
+       }
+      })    
+  }else{
+      Swal.fire({
+          icon: "info",
+          text:"No File is Loaded",
+          showConfirmButton: true
+        })
+  }
+}
+
+    render() {
+        return (
+          <div className="modal fade" id="MaterialDetailModal">
+            <div className="modal-dialog modal-dialog-centered modal-lg ">
+              <div className="modal-content">
+                <div className="modal-header" style={{ background: "#70b5ff" }}>
+                  <b>
+                    <h5 className="modal-title" style={{ color: "#070808" }}>
+                      Material Details
+                    </h5>
+                  </b>
+                  <button className="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div className="modal-body" style={{ background: "#d1e7ff" }}>
+                    <div className="col-lg-12 text-center">
+                      <b>From Store</b>
+                      <input className="form-control" type="checkbox" id="IsStoreProduct" /> 
+                    </div>
+                    <div className="row">
+                      <div className="col-lg-6 mt-3 MaterialObject ValidationClass">
+                        <b>Material Name</b>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="MaterialName"
+                          onInput={(e) =>
+                            (e.target.value = e.target.value.replace(
+                              /[^a-zA-Z]/g,
+                              "",
+                            ))
+                          }
+                          required
+                        />
+                      </div>
+                      <div className="col-lg-6 mt-3 MaterialObject ValidationClass mt">
+                        <b>Material Quantity</b>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="MaterialQuantity"
+                          onInput={(e) =>
+                            (e.target.value = e.target.value.replace(/[^\d]/g, ""))
+                          }
+                          required
+                        />
+                      </div>
+                      <div className="col-lg-6 mt-2 StoreHide ValidationClass">
+                        <b>Material Price</b>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="MaterialAmount"
+                          onInput={(e) =>
+                            (e.target.value = e.target.value.replace(/[^\d]/g, ""))
+                          }
+                          required
+                        />
+                      </div>
+                      <div className="col-lg-6 mt-2 StoreHide ValidationClass">
+                        <b>Material Tax %</b>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="MaterialTaxPercentage"
+                          onInput={(e) =>
+                            (e.target.value = e.target.value.replace(/[^\d]/g, ""))
+                          }
+                          required
+                        />
+                      </div>
+                      <div className="col-lg-7 mt-2">
+                        <b>Service Invoice File:</b>
+                        <input type="file" id="ServiceInvoice" style={{ background: "#d1e7ff" }} onChange={()=>{this.FileConversion()}} accept=".jpeg,.pdf,.jpg"/>
+                        <input type="text" id="ServiceInvoiceFileName" className="form-control" style={{display: "none"}} readOnly />
+                        </div>
+                        <div className="col-lg-5 mt-3">
+                          <br />
+                        <button onClick={() => {this.PreviewImage()}}><i className="fa fa-eye"></i></button>
+                        &nbsp;
+                        &nbsp;
+                        <button onClick={()=>{this.DeleteFile()}}><i className="fa fa-trash"></i></button>
+                      </div>
+                      <div className="">
+                        <input type="hidden" id="ServiceInvoiceField" />
+                      </div>
+                    </div>
+                    <div className="row mt-2">
+                      <div className="col-lg-12 text-right mt-2 ">
+                        <button className="btn btn-primary" data-dismiss="modal" id="SaveModal" onClick={()=>{$("#ServiceNarration").focus();}}>
+                          Save Modal
+                        </button>
+                      </div>
+                    </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+}
+
+
+export default MachineryServiceForm;
+
+
+
